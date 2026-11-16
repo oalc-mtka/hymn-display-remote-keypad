@@ -2,7 +2,7 @@
 
 These are drafted from a code review of this repo and [sarki012/hymn_control_ethernet](https://github.com/sarki012/hymn_control_ethernet), held here until the repo moves to `oalc-mtka/hymn-display-remote-keypad`. File each one as a GitHub issue there with its label, then delete this file.
 
-Line numbers refer to `main.py` in this repo unless marked **(eth)**, which means the Ethernet repo's `main.py`.
+Line numbers refer to the Ethernet `main.py`.
 
 ---
 
@@ -20,14 +20,14 @@ The UART0→UART1 pass-through (`uart_relayer`) is only started after the networ
 ## 2. Header loop spins forever when a client disconnects
 **Label:** `ready-for-agent`
 
-`main.py:163`: `while await reader.readline() != b"\r\n"` never ends if the client closes early, because `readline()` then returns `b""` forever. That connection is never closed.
+`main.py:185`: `while await reader.readline() != b"\r\n"` never ends if the client closes early, because `readline()` then returns `b""` forever. That connection is never closed.
 
 **Done when:** the loop also stops on `b""`, and the connection is closed.
 
 ## 3. Malformed HTTP responses
 **Label:** `ready-for-agent`
 
-`main.py:170` always sends `200 OK` first. For an unknown path, including the `/favicon.ico` every browser requests, it then writes a second `404` status line into the body. Validation errors also come back as `200`.
+`main.py:192` always sends `200 OK` first. For an unknown path, including the `/favicon.ico` every browser requests, it then writes a second `404` status line into the body. Validation errors also come back as `200`.
 
 **Done when:** each response has exactly one status line: `200` for success, `400` for a bad Song Number, `404` for an unknown path.
 
@@ -39,7 +39,7 @@ Today `0`, `00` and `000` are accepted. Leading zeros are stripped for the Top D
 **Done when:** the server strips leading zeros and accepts only 1–999. The same normalised digits go to both displays. `0` is rejected with `400`. See the glossary for the definition of a Song Number.
 
 ## 5. Ethernet start-up clean-up
-**Label:** `ready-for-agent` · **(eth)**
+**Label:** `ready-for-agent`
 
 - `nic.config(hostname="hymn")` always raises `ValueError` (the WIZNET6K driver only accepts `mac` and `trace`), and a bare `except: pass` hides it. Keep `network.hostname("hymn")`, which must run before `active(True)`, and remove the rest.
 - It prints `http://hymn/`. Print `http://hymn.local`, the IP address and the **MAC address** instead. Developers need the MAC for the label (see README, "Preparing a device to ship").
@@ -76,14 +76,17 @@ Rename to match [CONTEXT.md](../CONTEXT.md): `hymn_code_str`/`code_str` → `son
 ## 11. Remove dead code
 **Label:** `ready-for-agent`
 
-`perform_blink_cycle` and `led` (unused), `import socket`, `blink.py`, `config.html` (only a license header), and the Wi-Fi hotspot code once the move is done ([ADR 0001](adr/0001-wired-network-no-login.md)). It stays in git history.
+`perform_blink_cycle` and `led` (unused), `import socket`, `blink.py`, and `config.html` (only a license header).
 
 ## 12. No way to test without hardware
 **Label:** `needs-triage`
 
 Every change needs a board wired into a real Hymn Display Board. Separating the byte-building (keypad codes, Top Display frames) from the UART would allow plain tests of the byte sequences. A fake UART would let the web server run on a laptop.
 
-## 13. Move to `oalc-mtka/hymn-display-remote-keypad`
+## 13. Finish the move to `oalc-mtka/hymn-display-remote-keypad`
 **Label:** `ready-for-human`
 
-Create the public repo and push this repo's history. Add the Ethernet `main.py` as one commit, then this docs branch. Keep the MIT license with the Church of America as copyright holder. Retire the two personal repos with a pointer to the new one.
+The history, the Ethernet `main.py` and the docs are in this repo. Still to do:
+
+- sarki012 archives `sarki012/hymnal_display_raspberry_pi_webapp` and `sarki012/hymn_control_ethernet`, each with a README line pointing here.
+- Choose the support contact and replace **TBD** in the song leader guide and the installer's guide.

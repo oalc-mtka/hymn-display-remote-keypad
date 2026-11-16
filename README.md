@@ -11,12 +11,9 @@ This README is for the developers and engineers who work on it. Locality volunte
 
 ## Status
 
-The code is moving to `oalc-mtka/hymn-display-remote-keypad`.
+`main.py` is the **Ethernet** version, the product going forward. It was ported from [sarki012/hymn_control_ethernet](https://github.com/sarki012/hymn_control_ethernet).
 
-- **This repo** holds the original Pico W version, which runs its own open, hidden Wi-Fi hotspot called "Hymn". That version is **deprecated** ([ADR 0001](docs/adr/0001-wired-network-no-login.md)).
-- **The Ethernet version**, which is the product going forward, is in [sarki012/hymn_control_ethernet](https://github.com/sarki012/hymn_control_ethernet). It's the same app with the hotspot replaced by a wired connection. It will be brought into the new repo as one commit on top of this repo's history.
-
-The rest of this README describes the Ethernet version.
+The original Pico W version, which ran its own open, hidden Wi-Fi hotspot called "Hymn", is **deprecated** and lives only in git history ([ADR 0001](docs/adr/0001-wired-network-no-login.md)). Its last commit is `6346b40`.
 
 ## Hardware
 
