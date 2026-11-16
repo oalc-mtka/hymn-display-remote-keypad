@@ -1,8 +1,61 @@
 import machine
 import network
+import time
 import socket
-import time # Keep for synchronous delays
 import uasyncio as asyncio
+
+# W6100 Default Hardware Pins on EVB Pico2
+SPI_NUM = 0
+PIN_MISO = 16
+PIN_CS = 17
+PIN_SCK = 18
+PIN_MOSI = 19
+PIN_RST = 20
+
+# Setup the onboard LED pin safely for RP2350/RP2040 variations
+try:
+    led = machine.Pin("LED", machine.Pin.OUT)
+except ValueError:
+    led = machine.Pin(25, machine.Pin.OUT)
+
+def init_ethernet():
+    # Setup SPI and Network
+    spi = machine.SPI(
+        SPI_NUM,
+        baudrate=20000000,
+        polarity=0,
+        phase=0,
+        sck=machine.Pin(PIN_SCK),
+        mosi=machine.Pin(PIN_MOSI),
+        miso=machine.Pin(PIN_MISO)
+    )
+
+    # Initialize LAN (Wiznet W6100) interface driver
+    nic = network.WIZNET6K(spi, machine.Pin(PIN_CS), machine.Pin(PIN_RST))  # type: ignore
+
+    # Tell the network driver and your router that this device is named 'hymn'
+    try:
+        network.hostname("hymn")
+        nic.config(hostname="hymn")
+    except:
+        pass
+
+    nic.active(True)
+    nic.ifconfig('dhcp')
+
+    print("Connecting to network...")
+    while not nic.isconnected():
+        if nic.ifconfig()[0] != '0.0.0.0':
+            break
+        time.sleep(1)
+
+    print("Connected! IP Address:", nic.ifconfig()[0])
+    return nic
+
+# ========================================================
+# HYMN DISPLAY WEB APP (ported from main_wifi.py)
+# ========================================================
+
 # --- Keypad Protocol Definitions ---
 # These values MUST match the #define values in the C code for the display controller.
 # The original values were incorrect and have been updated to match the C firmware.
@@ -31,18 +84,6 @@ uart0 = machine.UART(0, baudrate=9600, rx=machine.Pin(1), invert=machine.UART.IN
 # We will only use the TX pin.
 uart1 = machine.UART(1, baudrate=9600, tx=machine.Pin(4), rx=machine.Pin(5), invert=machine.UART.INV_TX | machine.UART.INV_RX)
 
-# Onboard LED for Pico W
-led = machine.Pin("LED", machine.Pin.OUT)
-
-# Access Point Credentials
-# NOTE: Intentionally open (no password). MicroPython's cyw43 AP driver has a
-# known unfixed bug (github.com/orgs/micropython/discussions/17059) where
-# security=WPA2 is accepted by config() but never applied to the actual
-# beacon, so the AP broadcasts open regardless. Since the password was never
-# really being enforced, we drop it to avoid the "WEP not secure" prompt and
-# failed WPA2 handshake attempts on phones (e.g. iOS).
-AP_SSID = "Hymn"
-
 def send_key_code(code):
     """Sends a single byte key code over UART."""
     uart1.write(bytes([code]))
@@ -55,7 +96,7 @@ def send_hymn_to_top(hymn_code_str):
     then sends them again with bit 7 set. This is a multiplexing/addressing scheme.
     """
     print(f"Building and sending sendToTop() sequence for '{hymn_code_str}'...")
-    
+
     # Convert to int and back to string to strip leading zeros (e.g., "025" becomes "25").
     # This will cause the padding logic below to treat them as blanks.
     code_without_leading_zeros = str(int(hymn_code_str))
@@ -73,7 +114,7 @@ def send_hymn_to_top(hymn_code_str):
     # First 3 bytes have bit 7 cleared, next 3 have bit 7 set.
     sequence = [port_a_val & 0x7F, port_b_val & 0x7F, port_d_val & 0x7F,
                 port_a_val | 0x80, port_b_val | 0x80, port_d_val | 0x80]
-    
+
     uart1.write(bytes(sequence))
 
 def send_clear_top_sequence():
@@ -85,32 +126,13 @@ def send_clear_top_sequence():
     clear_sequence = [0b00000000, 0b00000000, 0b00000000, 0b10000000, 0b10000000, 0b10000000]
     uart1.write(bytes(clear_sequence))
 
-def start_access_point():
-    """Starts a Wi-Fi Access Point."""
-    ap = network.WLAN(network.AP_IF)
-    ap.active(False) # Deactivate the interface before configuring
-    # security=0 is open (no password). See AP_SSID comment above for why.
-    ap.config(essid=AP_SSID, channel=6, security=0, hidden=True)
-    ap.active(True)
-
-    # Wait for the AP to be active
-    print("Waiting for Access Point to activate...")
-    while not ap.active():
-        time.sleep(1)
-
-    time.sleep(1) # Add a small delay for stability
-    ip_address = ap.ifconfig()[0]
-    print(f"Hidden Access Point '{AP_SSID}' started on channel 6.")
-    print(f"Manually connect to the hidden network '{AP_SSID}' and go to http://{ip_address}")
-    return ip_address
-
 def perform_blink_cycle(count):
     """
     Blinks the LED 'count' times within a 1-second interval.
     """
     if count <= 0:
         return
-    
+
     blink_delay = 500 // count # Distribute blinks within ~1 second
     for _ in range(count):
         led.on()
@@ -156,7 +178,7 @@ async def uart_relayer():
 async def handle_web_request(reader, writer):
     """Handles a single incoming web request."""
     global timer_active, timer_task
-    
+
     try:
         request_line = await reader.readline()
         # Read and discard headers
@@ -171,7 +193,7 @@ async def handle_web_request(reader, writer):
 
         if "GET / " in request_str:
             await writer.awrite(HTML_CONTENT)
-        
+
         elif "GET /on?code=" in request_str:
             try:
                 code_str = request_str.split('code=')[1].split(' ')[0]
@@ -185,14 +207,14 @@ async def handle_web_request(reader, writer):
                     print(f"Sending keypad codes for '{code_str}' to bottom display...")
                     for digit in code_str:
                         send_key_code(KEYPAD_CODES[digit])
-                    
+
                     send_hymn_to_top(code_str)
                     send_hymn_to_top(code_str)
 
                     print("Starting 7-minute timer.")
                     timer_active = True
                     timer_task = asyncio.create_task(manage_seven_minute_timer())
-                    
+
                     await writer.awrite(f"OK: Sent code {code_str} to display.")
                 else:
                     await writer.awrite("Error: Code must be 1 to 3 digits.")
@@ -221,9 +243,14 @@ async def handle_web_request(reader, writer):
 
 async def main():
     """Main asynchronous function to set up and run all tasks."""
-    ip = start_access_point()
-    if not ip:
-        print("Failed to start Access Point. Halting.")
+    # CRITICAL DELAY: Gives power rails, router ports, and hardware time to stabilize on dead standalone boots
+    print("Standalone engine booting... Stabilizing rails...")
+    time.sleep(3)
+
+    # Execute network deployment
+    nic_interface = init_ethernet()
+    if not nic_interface:
+        print("Failed to start Ethernet. Halting.")
         return
 
     print("Starting web server...")
@@ -231,12 +258,17 @@ async def main():
     asyncio.create_task(uart_relayer())
     # Start the web server
     await asyncio.start_server(handle_web_request, '0.0.0.0', 80)
-    
+
+    print("\n🚀 Web Server Active!")
+    print("👉 Control Dashboard URL: http://hymn/")
+
     # Keep the main task running forever
     while True:
         await asyncio.sleep(10)
 
-# --- Execute Workflow ---
+# ========================================================
+# RUN APPLICATION LAUNCH ENGINE
+# ========================================================
 try:
     asyncio.run(main())
 except KeyboardInterrupt:
