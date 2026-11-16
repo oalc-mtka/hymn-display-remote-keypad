@@ -11,5 +11,7 @@
     ],
     "python.analysis.extraPaths": [
         "~/.micropico-stubs/included"
-    ]
+    ],
+    "licenser.license": "MIT",
+    "licenser.author": "Old Apostolic Lutheran Church of America"
 }
