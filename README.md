@@ -7,7 +7,7 @@ This README is for the developers and engineers who work on it. Locality volunte
 - Domain language: [CONTEXT.md](CONTEXT.md). Use these terms in code, issues and docs.
 - Decisions: [docs/adr/](docs/adr/)
 - Open questions for the engineers: [docs/questions-for-engineers.md](docs/questions-for-engineers.md)
-- Known problems, drafted as issues: [docs/review-findings.md](docs/review-findings.md)
+- Known problems: [GitHub issues](https://github.com/oalc-mtka/hymn-display-remote-keypad/issues)
 
 ## Status
 
@@ -45,12 +45,12 @@ These firmware facts come from reading WIZnet's source and haven't been tested o
 3. Use MicroPico to upload `main.py` and `index.html` to the board. `main.py` runs at boot.
 4. Plug the board into a network with DHCP, then open `http://hymn.local` from a device on the same network.
 
-There's no way to run or test the code without the hardware yet. That's a known gap, drafted as an issue in [review findings](docs/review-findings.md).
+There's no way to run or test the code without the hardware yet. That's a known gap: [#12](https://github.com/oalc-mtka/hymn-display-remote-keypad/issues/12).
 
 ## Preparing a device to ship
 
 1. Flash the firmware and upload the app.
-2. Record the board's MAC address and print it on the label, with a blank line beside it for the fallback IP. The firmware builds the MAC from the RP2350's unique ID, so it's fixed per board and survives re-flashing. Until the app prints it at boot (drafted as an issue), read it from the REPL after stopping `main.py` (untested):
+2. Record the board's MAC address and print it on the label, with a blank line beside it for the fallback IP. The firmware builds the MAC from the RP2350's unique ID, so it's fixed per board and survives re-flashing. Until the app prints it at boot ([#5](https://github.com/oalc-mtka/hymn-display-remote-keypad/issues/5)), read it from the REPL after stopping `main.py` (untested):
 
    ```python
    import machine, network

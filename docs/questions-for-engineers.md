@@ -1,6 +1,6 @@
 # Questions for the Engineers
 
-Questions about the Hymn Display Board hardware and firmware that the Remote Keypad code depends on. Answers go into the README (wiring, protocol) or an ADR, and resolve the matching `needs-info` items in [review-findings.md](review-findings.md).
+Questions about the Hymn Display Board hardware and firmware that the Remote Keypad code depends on. Answers go into the README (wiring, protocol) or an ADR, and resolve the matching [`needs-info` issues](https://github.com/oalc-mtka/hymn-display-remote-keypad/issues?q=is%3Aopen+label%3Aneeds-info).
 
 1. **Wiring.** What is connected to the Remote Keypad's UART0 RX (GP1) and UART1 TX (GP4)? Does the Remote Keypad sit **in the line** between the Bottom Display and the Top Display? The code copies every byte from UART0 to UART1, which suggests it does.
 2. **Remote Access Switch.** What exactly does it cut? With it off, does the Song Leaders' Bench keypad still reach the Top Display, or does the switch also route the line around the Remote Keypad?
