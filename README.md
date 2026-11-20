@@ -6,12 +6,13 @@ This README is for the developers and engineers who work on it. Locality volunte
 
 - Domain language: [CONTEXT.md](CONTEXT.md). Use these terms in code, issues and docs.
 - Decisions: [docs/adr/](docs/adr/)
+- Flashing and shipping a device: [docs/engineers-setup.md](docs/engineers-setup.md)
 - Open questions for the engineers: [docs/questions-for-engineers.md](docs/questions-for-engineers.md)
 - Known problems: [GitHub issues](https://github.com/oalc-mtka/hymn-display-remote-keypad/issues)
 
 ## Status
 
-`main.py` is the **Ethernet** version, the product going forward. It was ported from [sarki012/hymn_control_ethernet](https://github.com/sarki012/hymn_control_ethernet).
+`src/` is the **Ethernet** version, the product going forward. It was ported from [sarki012/hymn_control_ethernet](https://github.com/sarki012/hymn_control_ethernet).
 
 The original Pico W version, which ran its own open, hidden Wi-Fi hotspot called "Hymn", is **deprecated** and lives only in git history ([ADR 0001](docs/adr/0001-wired-network-no-login.md)). Its last commit is `6346b40`.
 
@@ -34,7 +35,7 @@ How the UARTs connect to the Hymn Display Board isn't documented yet, including 
 - Release: [v1.29.0-WIZnet-timeout](https://github.com/WIZnet-ioNIC/WIZnet-EVB-Pico-micropython/releases/tag/v1.29.0-WIZnet-timeout) or later. Older releases report the W6100 as never connected.
 - File: **`LWIP-W6100_EVB_PICO2-v1.29.0-preview.uf2`**. It must be the **LWIP** build. The **TOE** build has no mDNS, so `hymn.local` won't work on it, and it ignores the hostname.
 
-To flash it: hold BOOTSEL while plugging in USB, then copy the `.uf2` onto the drive that appears.
+Step-by-step flashing, with checks: [engineer's setup guide](docs/engineers-setup.md).
 
 These firmware facts come from reading WIZnet's source and haven't been tested on a board yet.
 
@@ -42,26 +43,36 @@ These firmware facts come from reading WIZnet's source and haven't been tested o
 
 1. Install VS Code and the recommended extensions (`.vscode/extensions.json`), in particular **MicroPico** (`paulober.pico-w-go`).
 2. Flash the firmware (above).
-3. Use MicroPico to upload `main.py` and `index.html` to the board. `main.py` runs at boot.
+3. Use MicroPico's upload-project command. It uploads everything in `src/` (set by `micropico.syncFolder`) to the board's root. `main.py` runs at boot.
 4. Plug the board into a network with DHCP, then open `http://hymn.local` from a device on the same network.
 
-There's no way to run or test the code without the hardware yet. That's a known gap: [#12](https://github.com/oalc-mtka/hymn-display-remote-keypad/issues/12).
+### Repo layout
+
+| Path | What it is |
+| --- | --- |
+| `src/` | Exactly what goes on the board. |
+| `src/main.py` | Hardware, network, pass-through, web server and Display Timeout. Needs the board. |
+| `src/protocol.py` | Song Number → UART1 bytes. Pure, so it runs and is tested on a laptop. |
+| `src/index.html` | The phone keypad page. |
+| `tests/` | Tests for `protocol.py`. |
+
+### Tests
+
+The byte protocol is tested on MicroPython's Unix port (the release the WIZnet firmware is built on) and on CPython. CI runs both on every push and pull request. Locally, from the repo root:
+
+```bash
+brew install micropython
+```
+
+```bash
+micropython tests/test_protocol.py
+```
+
+`main.py` still can't run without the hardware: [#12](https://github.com/oalc-mtka/hymn-display-remote-keypad/issues/12).
 
 ## Preparing a device to ship
 
-1. Flash the firmware and upload the app.
-2. Record the board's MAC address and print it on the label, with a blank line beside it for the fallback IP. The firmware builds the MAC from the RP2350's unique ID, so it's fixed per board and survives re-flashing. Until the app prints it at boot ([#5](https://github.com/oalc-mtka/hymn-display-remote-keypad/issues/5)), read it from the REPL after stopping `main.py` (untested):
-
-   ```python
-   import machine, network
-   spi = machine.SPI(0, baudrate=20_000_000, sck=machine.Pin(18), mosi=machine.Pin(19), miso=machine.Pin(16))
-   nic = network.WIZNET6K(spi, machine.Pin(17), machine.Pin(20))
-   nic.active(True)
-   print(':'.join('%02x' % b for b in nic.config('mac')))
-   ```
-
-3. Check it on a test network: `http://hymn.local` opens and the keypad sends.
-4. Include the [song leader guide](docs/song-leader-guide.md) and the [installer's guide](docs/installers-guide.md) checklist.
+Follow the [engineer's setup guide](docs/engineers-setup.md): flash, upload, record the MAC address, bench test, ship. It also lists what's changed from the Pico W version.
 
 ## How it works
 
@@ -74,12 +85,12 @@ There's no way to run or test the code without the hardware yet. That's a known 
 | Request | What it does |
 | --- | --- |
 | `GET /` | Serves `index.html`, the phone keypad. |
-| `GET /on?code=NNN` | Shows a Song Number. If a Display Timeout is running, it blanks the Top Display first. Then it sends one keypad code per digit (50 ms apart), the Top Display frame twice, and starts the 7-minute Display Timeout. |
+| `GET /on?code=NNN` | Shows a Song Number (1–999; leading zeros are stripped, so `007` is sent as `7` to both displays). If a Display Timeout is running, it blanks the Top Display first. Then it sends one keypad code per digit (50 ms apart), the Top Display frame twice, and starts the 7-minute Display Timeout. |
 | `GET /off` | If a Display Timeout is running, it cancels it and blanks the Top Display. Then it sends the keypad Clear code. |
 
 ### Byte protocol on UART1
 
-The protocol mirrors the original C firmware (the C source isn't in this repo).
+The protocol mirrors the original C firmware (the C source isn't in this repo). It's all in `src/protocol.py`.
 
 - **Keypad codes**, one byte per key: `0`=`0x17`, `1`=`0x33`, `2`=`0x67`, `3`=`0x19`, `4`=`0x32`, `5`=`0x65`, `6`=`0x0C`, `7`=`0x5F`, `8`=`0x63`, `9`=`0x5E`, Send=`0x5D` (defined but never sent), Clear=`0x06`.
 - **Top Display frame** (`sendToTop()`): 6 bytes. These are the 7-segment patterns for the third, second and first digit with bit 7 cleared, then the same three bytes with bit 7 set. Leading positions are blank (`0x00`). It's always sent twice.
