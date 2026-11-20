@@ -1,0 +1,19 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The Unix port of the MicroPython release the WIZnet firmware is built on.
+      - uses: BrianPugh/install-micropython@v3
+        with:
+          reference: v1.29.0
+          submodules: false
+      - run: micropython tests/test_protocol.py
+      - run: python3 tests/test_protocol.py

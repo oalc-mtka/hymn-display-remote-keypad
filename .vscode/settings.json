@@ -6,11 +6,13 @@
     },
     "python.terminal.activateEnvironment": false,
     "micropico.openOnStart": true,
+    "micropico.syncFolder": "src",
     "python.analysis.typeshedPaths": [
         "~/.micropico-stubs/included"
     ],
     "python.analysis.extraPaths": [
-        "~/.micropico-stubs/included"
+        "~/.micropico-stubs/included",
+        "src"
     ],
     "licenser.license": "MIT",
     "licenser.author": "Old Apostolic Lutheran Church of America"
